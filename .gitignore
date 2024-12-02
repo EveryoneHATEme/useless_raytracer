@@ -400,3 +400,4 @@ FodyWeavers.xsd
 *.sln.iml
 
 libs\raylib-5.5
+out
