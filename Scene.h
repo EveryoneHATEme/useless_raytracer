@@ -1,24 +1,24 @@
 #pragma once
 
+#include <memory>
 #include <vector>
-#include <optional>
 
 #include "raylib.h"
 
-#include "Sphere.h"
+#include "RenderableObject.h"
 #include "Utils.h"
-#include "RayHit.h"
+#include "HitPayload.h"
 
 class Scene
 {
 private:
-	std::vector<Sphere> objects;
+	std::vector<std::shared_ptr<RenderableObject>> objects;
 
 public:
 	Scene() = default;
-	Scene(const std::vector<Sphere>& objects);
+	Scene(const std::vector<std::shared_ptr<RenderableObject>>& objects);
 
-	void AddObject(Sphere&& object);
+	void AddObject(std::shared_ptr<RenderableObject> object);
 
-	std::optional<RayHit> RayCast(const RayClass& ray, float minParameter, float maxParameter) const;
+	const std::vector<std::shared_ptr<RenderableObject>>& GetObjects() const;
 };

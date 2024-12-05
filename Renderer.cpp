@@ -1,54 +1,93 @@
 #include "Renderer.h"
 
+#include <iostream>
 
-glm::vec3 Renderer::GetPixel(unsigned int x, unsigned int y, const Scene& scene) const
+glm::vec3 Renderer::RenderPixel(unsigned int x, unsigned int y) const
 {
-	RayClass ray = viewport->GetRay(x, y);
-	std::optional<RayHit> rayHit;
+	RayClass currentRay = RayClass(camera.GetPosition(), rayDirectionsCache[x + y * camera.getViewportWidth()]);
 
-	float coefficient = 1.f;
-	unsigned int currentDepth = 0;
+	glm::vec3 color(0.f);
+	float multiplier = 1.f;
 
-	for (; currentDepth < maxDepth; ++currentDepth)
-	{
-		rayHit = scene.RayCast(ray, 0.001f, std::numeric_limits<float>::infinity());
-		if (not rayHit)
+	for (unsigned int depth = 0u; depth < maxDepth; ++depth) {
+		HitPayload hitPayload = TraceRay(currentRay);
+
+		if (hitPayload.distance < 0.f) {
+			color += multiplier * glm::vec3(1.f);
 			break;
+		}
 
-		coefficient *= 0.5;
-		ray = RayClass(rayHit.value().position, rayHit.value().normal + glm::sphericalRand(1.f));
+		color += hitPayload.object.get()->GetColor() * multiplier;
+
+		multiplier *= 0.5f;
+
+		currentRay = RayClass(
+			hitPayload.position + hitPayload.normal * 0.0001f,
+			glm::normalize(hitPayload.normal + Utils::RandomOnUnitSphere())
+		);
 	}
 
-	glm::vec3 finalColor = Skybox(ray) * coefficient;
-
-	return finalColor;
+	return color;
 }
 
-void Renderer::Render(Image& buffer, const Scene& scene) const
+HitPayload Renderer::TraceRay(const RayClass& ray) const
 {
-	buffer = GenImageColor(imageWidth, imageHeight, WHITE);
-	glm::vec3 pixelColorVector(0.f, 0.f, 0.f);
-	Color pixelColor;
+	float minHitDistance = std::numeric_limits<float>::infinity();
+	std::shared_ptr<RenderableObject> closestObject = nullptr;
+	float currentHitDistance = -1.f;
+	
+	for (const std::shared_ptr<RenderableObject>& object : scene.GetObjects()) {
+		if (!object.get()->FindClosestIntersection(ray, currentHitDistance))
+			continue;
 
-	for (unsigned int y = 0; y < imageHeight; ++y) {
-		for (unsigned int x = 0; x < imageWidth; ++x) {
-			pixelColorVector = glm::vec3(0.f, 0.f, 0.f);
+		if (currentHitDistance > 0.f && currentHitDistance < minHitDistance) {
+			minHitDistance = currentHitDistance;
+			closestObject = object;
+		}
+	}
 
-			for (unsigned int sample = 0; sample < samplesPerPixel; ++sample)
-				pixelColorVector += GetPixel(x, y, scene);
+	if (closestObject == nullptr)
+		return GetMissPayload(ray);
 
-			pixelColor = Utils::vec3ToColor(pixelColorVector * sampleScale);
-			ImageDrawPixel(&buffer, x, y, pixelColor);
+	return GetClosestHitPayload(ray, minHitDistance, closestObject);
+}
+
+HitPayload Renderer::GetClosestHitPayload(const RayClass& ray, float hitDistance, std::shared_ptr<RenderableObject> hitObject) const
+{
+	glm::vec3 origin = ray.GetOrigin() - hitObject.get()->GetPosition();
+	glm::vec3 hitPosition = origin + ray.GetDirection() * hitDistance;
+	glm::vec3 hitNormal = glm::normalize(hitPosition);
+	hitPosition += hitObject.get()->GetPosition();
+
+	return { hitDistance, hitPosition, hitNormal, hitObject };
+}
+
+HitPayload Renderer::GetMissPayload(const RayClass& ray) const
+{
+	return { -1.f, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, nullptr };
+}
+
+Renderer::Renderer(const Scene& scene, const CameraClass& camera, unsigned int maxDepth)
+	:scene(scene), camera(camera), maxDepth(maxDepth)
+{
+	rayDirectionsCache.resize(camera.getViewportWidth() * camera.getViewportHeight());
+}
+
+void Renderer::RenderScene(Image& buffer) const
+{
+	glm::vec3 pixelColor;
+	Color normalizedColor;
+
+	for (unsigned int y = 0u; y < camera.getViewportHeight(); ++y) {
+		for (unsigned int x = 0u; x < camera.getViewportWidth(); ++x) {
+			pixelColor = RenderPixel(x, y);
+			normalizedColor = Utils::vec3ToColor(pixelColor);
+			ImageDrawPixel(&buffer, x, y, normalizedColor);
 		}
 	}
 }
 
-glm::vec3 Renderer::Skybox(const RayClass& ray) const
+void Renderer::Update()
 {
-	float parameter = 0.5f * (ray.GetDirection().y + 1.0f);
-	glm::vec3 firstColor(1.0f, 1.0f, 1.0f);
-	glm::vec3 secondColor(0.5f, 0.7f, 1.0f);
-
-	glm::vec3 currentColor = (1.0f - parameter) * firstColor + parameter * secondColor;
-	return currentColor;
+	camera.GetRayDirections(rayDirectionsCache);
 }

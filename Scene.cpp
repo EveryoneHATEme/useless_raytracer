@@ -1,34 +1,15 @@
 #include "Scene.h"
 
-Scene::Scene(const std::vector<Sphere>& objects)
+Scene::Scene(const std::vector<std::shared_ptr<RenderableObject>>& objects)
 	:objects(objects)
 {}
 
-void Scene::AddObject(Sphere&& object)
+void Scene::AddObject(std::shared_ptr<RenderableObject> object)
 {
-	objects.emplace_back(std::move(object));
+	objects.push_back(object);
 }
 
-std::optional<RayHit> Scene::RayCast(const RayClass& ray, float minParameter, float maxParameter) const
+const std::vector<std::shared_ptr<RenderableObject>>& Scene::GetObjects() const
 {
-	std::optional<RayHit> currentHit;
-	RayHit closestHit;
-	float closestParameter = maxParameter;
-	bool hitAnything = false;
-
-	for (const Sphere& object : objects) {
-		currentHit = object.FindRayHit(ray, minParameter, closestParameter);
-		if (not currentHit)
-			continue;
-
-		closestHit = currentHit.value();
-		closestParameter = closestHit.parameter;
-		hitAnything = true;
-	}
-
-	if (not hitAnything)
-		return std::nullopt;
-
-	return closestHit;
+	return objects;
 }
-

@@ -1,13 +1,17 @@
 #pragma once 
 
-#include <optional>
+#include <vector>
 
-#include "RayHit.h"
+#include <glm/glm.hpp>
+
+#include "RayClass.h"
 
 class RenderableObject
 {
 public:
-	virtual ~RenderableObject() = default;
-
-	virtual std::optional<RayHit> FindRayHit(const RayClass& ray, float minParameter, float maxParameter) const = 0;
+	virtual std::vector<float> FindIntersections(const RayClass& ray) const = 0;
+	virtual bool FindClosestIntersection(const RayClass& ray, float& intersection) const = 0;
+	virtual glm::vec3 GetColor() const = 0;
+	virtual glm::vec3 GetNormal(const glm::vec3& position) const = 0;
+	virtual const glm::vec3& GetPosition() const = 0;
 };

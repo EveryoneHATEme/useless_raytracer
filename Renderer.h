@@ -1,39 +1,34 @@
 #pragma once
 
-#include "raylib.h"
+#include <memory>
+
+#include <raylib.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/random.hpp>
-#include <iostream>
 
-#include "Viewport.h"
+#include "Camera.h"
+#include "HitPayload.h"
 #include "RayClass.h"
-#include "Utils.h"
+#include "RenderableObject.h"
 #include "Scene.h"
 
 class Renderer
 {
 private:
-	unsigned int imageWidth;
-	unsigned int imageHeight;
+	const Scene& scene;
+	const CameraClass& camera;
+	unsigned int maxDepth;
 
-	unsigned int maxDepth = 50;
-	unsigned int samplesPerPixel = 100;
+	std::vector<glm::vec3> rayDirectionsCache;
 
-	float sampleScale;
-
-	Viewport* viewport;
-
-	glm::vec3 GetPixel(unsigned int x, unsigned int y, const Scene& scene) const;
+	glm::vec3 RenderPixel(unsigned int x, unsigned int y) const;
+	HitPayload TraceRay(const RayClass& ray) const;
+	HitPayload GetClosestHitPayload(const RayClass& ray, float hitDistance, std::shared_ptr<RenderableObject> hitObject) const;
+	HitPayload GetMissPayload(const RayClass& ray) const;
 
 public:
-	Renderer(unsigned int imWidth, unsigned int imHeight)
-		: imageWidth(imWidth), imageHeight(imHeight)
-	{
-		viewport = new Viewport((float)imageWidth, (float)imageHeight);
-		sampleScale = 1.0f / samplesPerPixel;
-		std::cout << "sample scale: " << sampleScale << '\n';
-	}
+	Renderer(const Scene& scene, const CameraClass& camera, unsigned int maxDepth);
 
-	void Render(Image& buffer, const Scene& scene) const;
-	glm::vec3 Skybox(const RayClass& ray) const;
+	void RenderScene(Image& buffer) const;
+	void Update();
 };

@@ -11,13 +11,13 @@ endif()
 
 project ("ray_project")
 
-set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+#set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
 add_subdirectory(libs/raylib-5.5)
 
 # Add source to this project's executable.
-add_executable (ray_project "ray_project.cpp"  "Renderer.h" "Renderer.cpp" "RayClass.h" "RayClass.cpp" "Viewport.h" "Viewport.cpp" "Utils.h" "Utils.cpp" "Scene.h" "Scene.cpp" "Sphere.h" "Sphere.cpp" "RayHit.h" "RayHit.cpp" "RenderableObject.h")
+add_executable (ray_project "main.cpp" "RayClass.h" "RayClass.cpp" "Camera.h" "Camera.cpp" "Utils.h" "Utils.cpp" "Scene.h" "Scene.cpp" "Sphere.h" "Sphere.cpp" "HitPayload.h" "RenderableObject.h"  "Renderer.h" "Renderer.cpp")
 
 target_link_libraries(ray_project PRIVATE raylib)
 
