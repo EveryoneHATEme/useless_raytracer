@@ -29,8 +29,8 @@ void CameraClass::Update(float timeDelta)
 	Vector2 rawMouseDelta = GetMouseDelta();
 	glm::vec2 mouseDelta(rawMouseDelta.x * 0.003, -rawMouseDelta.y * 0.003);
 
-	if (IsMouseButtonUp(MOUSE_RIGHT_BUTTON))
-		return;
+	//if (IsMouseButtonUp(MOUSE_RIGHT_BUTTON))
+	//	return;
 	
 	constexpr glm::vec3 upDirection(0.f, 1.f, 0.f);
 	glm::vec3 rightDirection = glm::cross(forwardDirection, upDirection);

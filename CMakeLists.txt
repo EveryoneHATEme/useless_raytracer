@@ -17,7 +17,7 @@ project ("ray_project")
 add_subdirectory(libs/raylib-5.5)
 
 # Add source to this project's executable.
-add_executable (ray_project "main.cpp" "RayClass.h" "RayClass.cpp" "Camera.h" "Camera.cpp" "Utils.h" "Utils.cpp" "Scene.h" "Scene.cpp" "Sphere.h" "Sphere.cpp" "HitPayload.h" "RenderableObject.h"  "Renderer.h" "Renderer.cpp")
+add_executable (ray_project "main.cpp" "RayClass.h" "RayClass.cpp" "Camera.h" "Camera.cpp" "Utils.h" "Utils.cpp" "Scene.h" "Scene.cpp" "Sphere.h" "Sphere.cpp" "HitPayload.h" "RenderableObject.h"  "Renderer.h" "Renderer.cpp" "Material.h")
 
 target_link_libraries(ray_project PRIVATE raylib)
 

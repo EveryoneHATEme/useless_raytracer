@@ -7,24 +7,37 @@ glm::vec3 Renderer::RenderPixel(unsigned int x, unsigned int y) const
 	RayClass currentRay = RayClass(camera.GetPosition(), rayDirectionsCache[x + y * camera.getViewportWidth()]);
 
 	glm::vec3 color(0.f);
-	float multiplier = 1.f;
+	glm::vec3 throughput(1.f);
+	float attenuation = 0.5f;
 
 	for (unsigned int depth = 0u; depth < maxDepth; ++depth) {
 		HitPayload hitPayload = TraceRay(currentRay);
 
 		if (hitPayload.distance < 0.f) {
-			color += multiplier * glm::vec3(1.f);
+			color += throughput * glm::vec3(0.7f);
 			break;
 		}
 
-		color += hitPayload.object.get()->GetColor() * multiplier;
+		MaterialStruct hitMaterial = hitPayload.object.get()->GetMaterial();
+		glm::vec3 diffuse = hitMaterial.diffuseColor * (1.f - hitMaterial.reflectanceRate);
+		color += throughput * diffuse * attenuation;
 
-		multiplier *= 0.5f;
+		glm::vec3 reflectDirection = glm::reflect(currentRay.GetDirection(), hitPayload.normal);
+		glm::vec3 diffuseDirection = glm::normalize(hitPayload.normal + Utils::RandomOnUnitSphere());
 
-		currentRay = RayClass(
-			hitPayload.position + hitPayload.normal * 0.0001f,
-			glm::normalize(hitPayload.normal + Utils::RandomOnUnitSphere())
-		);
+		float r = Utils::RandomFloat();
+		glm::vec3 newDirection;
+
+		if (r < hitMaterial.reflectanceRate) {
+			throughput *= hitMaterial.reflectanceRate;
+			newDirection = glm::reflect(currentRay.GetDirection(), hitPayload.normal);
+		}
+		else {
+			throughput *= hitMaterial.diffuseColor * (1.f - hitMaterial.reflectanceRate);
+			newDirection = glm::normalize(hitPayload.normal + Utils::RandomOnUnitSphere());
+		}
+
+		currentRay = RayClass(hitPayload.position + hitPayload.normal * 0.0001f, newDirection);
 	}
 
 	return color;

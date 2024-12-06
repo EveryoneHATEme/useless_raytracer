@@ -1,8 +1,8 @@
 #include "Sphere.h"
 #include <iostream>
 
-Sphere::Sphere(float radius, glm::vec3 position, glm::vec3 color)
-	:radius(std::fmax(0.f, radius)), position(position), color(color)
+Sphere::Sphere(float radius, glm::vec3 position, MaterialStruct material)
+	:radius(std::fmax(0.f, radius)), position(position), material(material)
 {
 }
 
@@ -16,9 +16,9 @@ const glm::vec3& Sphere::GetPosition() const
 	return position;
 }
 
-glm::vec3 Sphere::GetColor() const
+const MaterialStruct& Sphere::GetMaterial() const
 {
-	return color;
+	return material;
 }
 
 std::vector<float> Sphere::FindIntersections(const RayClass& ray) const
