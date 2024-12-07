@@ -16,19 +16,24 @@ class Renderer
 {
 private:
 	const Scene& scene;
-	const CameraClass& camera;
+	CameraClass& camera;
 	unsigned int maxDepth;
 
+	bool antialiasing = true;
+
+	unsigned int frameIndex{ 1u };
+
+	glm::vec3* imageCache;
 	std::vector<glm::vec3> rayDirectionsCache;
 
-	glm::vec3 RenderPixel(unsigned int x, unsigned int y) const;
+	glm::vec3 RenderPixel(unsigned int x, unsigned int y);
 	HitPayload TraceRay(const RayClass& ray) const;
 	HitPayload GetClosestHitPayload(const RayClass& ray, float hitDistance, std::shared_ptr<RenderableObject> hitObject) const;
 	HitPayload GetMissPayload(const RayClass& ray) const;
 
 public:
-	Renderer(const Scene& scene, const CameraClass& camera, unsigned int maxDepth);
+	Renderer(const Scene& scene, CameraClass& camera, unsigned int maxDepth);
 
-	void RenderScene(Image& buffer) const;
+	void RenderScene(Image& buffer);
 	void Update();
 };

@@ -20,6 +20,10 @@ private:
 	unsigned int viewportWidth;
 	unsigned int viewportHeight;
 
+	bool moved{ true };
+
+	unsigned int randomSeed = 42u;
+
 	float verticalFOV;
 	float nearClip;
 	float farClip;
@@ -35,11 +39,12 @@ private:
 public:
 	CameraClass(unsigned int viewportWidth, unsigned int viewportHeight, float verticalFOV, float nearClip, float farClip);
 
-	void GetRayDirections(std::vector<glm::vec3>& rayDirections) const;
+	void GetRayDirections(std::vector<glm::vec3>& rayDirections);
 	void Update(float timeDelta);
 	
 	unsigned int getViewportWidth() const { return viewportWidth; }
 	unsigned int getViewportHeight() const { return viewportHeight; }
+	bool IsMoved() const { return this->moved; };
 
 	glm::vec3 GetPosition() const { return position; }
 };
