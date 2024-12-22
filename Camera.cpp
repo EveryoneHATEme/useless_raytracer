@@ -1,68 +1,67 @@
 #include "Camera.h"
 
-CameraClass::CameraClass(unsigned int viewportWidth, unsigned int viewportHeight, float verticalFOV, float nearClip, float farClip)
-	: viewportWidth(viewportWidth), viewportHeight(viewportHeight), verticalFOV(verticalFOV), nearClip(nearClip), farClip(farClip)
+#include <iostream>
+
+Camera::Camera(unsigned int viewportWidth, unsigned int viewportHeight, glm::vec3 position, glm::vec3 forwardDirection, float verticalFOV, float nearClip, float farClip)
+	: viewportWidth(viewportWidth), viewportHeight(viewportHeight), position(position), forwardDirection(forwardDirection), verticalFOV(verticalFOV), nearClip(nearClip), farClip(farClip)
 {
-	view = glm::lookAt(position, position + forwardDirection, glm::vec3(0.f, 1.f, 0.f));
-	inverseView = glm::inverse(view);
-	projection = glm::perspectiveFov(verticalFOV, (float)viewportWidth, (float)viewportHeight, nearClip, farClip);
-	inverseProjection = glm::inverse(projection);
+	this->viewMatrix = glm::lookAt(this->position, this->position + this->forwardDirection, glm::vec3(0.f, 1.f, 0.f));
+	this->inverseViewMatrix = glm::inverse(this->viewMatrix);
+	this->projectionMatrix = glm::perspectiveFov(this->verticalFOV, (float)this->viewportWidth, (float)this->viewportHeight, this->nearClip, this->farClip);
+	this->inverseProjectionMatrix = glm::inverse(this->projectionMatrix);
 }
 
-void CameraClass::GetRayDirections(std::vector<glm::vec3>& rayDirections)
+void Camera::update(GLFWwindow* window, float timeDelta)
 {
-	glm::vec2 coordinate;
-	glm::vec4 target;
+	double inputXposDouble, inputYposDouble;
+	glfwGetCursorPos(window, &inputXposDouble, &inputYposDouble);
+	float inputXpos = (float)inputXposDouble;
+	float inputYpos = (float)inputYposDouble;
 
-	for (unsigned int y = 0u; y < viewportHeight; ++y) {
-		for (unsigned int x = 0u; x < viewportWidth; ++x) {
-			float offsetX = Utils::RandomFloat() - 0.5f;
-			float offsetY = Utils::RandomFloat() - 0.5f;
+	float pitchDelta = (this->lastCursorY - inputYpos) * this->mouseSensitivity;
+	float yawDelta = (inputXpos - this->lastCursorX) * this->mouseSensitivity;
+	
+	this->lastCursorX = inputXpos;
+	this->lastCursorY = inputYpos;
 
-			coordinate = glm::vec2(((float)x + offsetX) / (float)viewportWidth, ((float)y + offsetY) / (float)viewportHeight);
-			coordinate *= 2.f;
-			coordinate -= 1.f;
-
-			target = inverseProjection * glm::vec4(coordinate.x, coordinate.y, 1.f, 1.f);
-			rayDirections[x + y * viewportWidth] = glm::vec3(inverseView * glm::vec4(glm::normalize(glm::vec3(target) / target.w), 0.f));
-		}
-	}
-}
-
-void CameraClass::Update(float timeDelta)
-{
-	if (IsMouseButtonUp(MOUSE_RIGHT_BUTTON)) {
-		this->moved = false;
-		return;
-	}
-
-	Vector2 rawMouseDelta = GetMouseDelta();
-	glm::vec2 mouseDelta(rawMouseDelta.x * 0.003, -rawMouseDelta.y * 0.003);
-
-	this->moved = true;
+	this->moved = pitchDelta != 0.0f || yawDelta != 0.0f;
 	
 	constexpr glm::vec3 upDirection(0.f, 1.f, 0.f);
-	glm::vec3 rightDirection = glm::cross(forwardDirection, upDirection);
+	glm::vec3 rightDirection = glm::cross(this->forwardDirection, upDirection);
+	float distance = this->movementSpeed * timeDelta;
 
-	if (IsKeyDown(KEY_W))
-		position += forwardDirection * timeDelta;
-	if (IsKeyDown(KEY_S))
-		position -= forwardDirection * timeDelta;
-	if (IsKeyDown(KEY_A))
-		position -= rightDirection * timeDelta;
-	if (IsKeyDown(KEY_D))
-		position += rightDirection * timeDelta;
-	if (IsKeyDown(KEY_LEFT_SHIFT))
-		position += upDirection * timeDelta;
-	if (IsKeyDown(KEY_SPACE))
-		position -= upDirection * timeDelta;
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE)) {
+		glfwSetWindowShouldClose(window, true);
+	}
 
-	float pitchDelta = mouseDelta.y;
-	float yawDelta = mouseDelta.x;
+	if (glfwGetKey(window, GLFW_KEY_W)) {
+		this->position += this->forwardDirection * distance;
+		this->moved = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_S)) {
+		this->position -= this->forwardDirection * distance;
+		this->moved = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A)) {
+		this->position -= rightDirection * distance;
+		this->moved = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_D)) {
+		this->position += rightDirection * distance;
+		this->moved = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+		this->position -= upDirection * distance;
+		this->moved = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_C)) {
+		this->position += upDirection * distance;
+		this->moved = true;
+	}
 
 	glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitchDelta, rightDirection), glm::angleAxis(-yawDelta, upDirection)));
-	forwardDirection = glm::rotate(q, forwardDirection);
+	this->forwardDirection = glm::rotate(q, this->forwardDirection);
 
-	view = glm::lookAt(position, position + forwardDirection, upDirection);
-	inverseView = glm::inverse(view);
+	this->viewMatrix = glm::lookAt(this->position, this->position + this->forwardDirection, upDirection);
+	this->inverseViewMatrix = glm::inverse(this->viewMatrix);
 }

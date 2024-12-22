@@ -2,38 +2,36 @@
 
 #include <memory>
 
-#include <raylib.h>
 #include <glm/glm.hpp>
-#include <glm/gtc/random.hpp>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
 #include "Camera.h"
-#include "HitPayload.h"
-#include "RayClass.h"
-#include "RenderableObject.h"
 #include "Scene.h"
+#include "graphics/graphics.h"
 
 class Renderer
 {
 private:
-	const Scene& scene;
-	CameraClass& camera;
-	unsigned int maxDepth;
-
-	bool antialiasing = true;
+	Camera& camera;
+	Scene& scene;
 
 	unsigned int frameIndex{ 1u };
-
-	glm::vec3* imageCache;
-	std::vector<glm::vec3> rayDirectionsCache;
-
-	glm::vec3 RenderPixel(unsigned int x, unsigned int y);
-	HitPayload TraceRay(const RayClass& ray) const;
-	HitPayload GetClosestHitPayload(const RayClass& ray, float hitDistance, std::shared_ptr<RenderableObject> hitObject) const;
-	HitPayload GetMissPayload(const RayClass& ray) const;
+	
+	std::unique_ptr<ShaderStorageBuffer> screenStorageBuffer;
+	std::unique_ptr<Texture> displayTexture;
+	std::unique_ptr<VertexArray> vertexArray;
+	std::unique_ptr<VertexBuffer> vertexBuffer;
+	std::unique_ptr<Shader> displayShader;
+	std::unique_ptr<Shader> copyShader;
+	std::unique_ptr<Shader> raytracingShader;
+	std::unique_ptr<UniformBuffer> dimensionsBuffer;
+	std::unique_ptr<UniformBuffer> materialsBuffer;
+	std::unique_ptr<UniformBuffer> spheresBuffer;
 
 public:
-	Renderer(const Scene& scene, CameraClass& camera, unsigned int maxDepth);
+	Renderer(Camera& camera, Scene& scene);
+	~Renderer();
 
-	void RenderScene(Image& buffer);
-	void Update();
+	void draw(GLFWwindow* window);
 };

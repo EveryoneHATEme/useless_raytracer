@@ -1,15 +1,23 @@
 #include "Scene.h"
 
-Scene::Scene(const std::vector<std::shared_ptr<RenderableObject>>& objects)
-	:objects(objects)
-{}
-
-void Scene::AddObject(std::shared_ptr<RenderableObject> object)
+void Scene::addMaterial(const Material& material)
 {
-	objects.push_back(object);
+	if (this->materialPayload.materialsCount < MATERIALS_SIZE)
+		this->materialPayload.materials[this->materialPayload.materialsCount++] = material;
 }
 
-const std::vector<std::shared_ptr<RenderableObject>>& Scene::GetObjects() const
+void Scene::addSphere(const Sphere& sphere)
 {
-	return objects;
+	if (this->spherePayload.spheresCount < SPHERES_SIZE)
+		this->spherePayload.spheres[this->spherePayload.spheresCount++] = sphere;
+}
+
+const MaterialPayload& Scene::getMaterialPayload() const
+{
+	return this->materialPayload;
+}
+
+const SpherePayload& Scene::getSpherePayload() const
+{
+	return this->spherePayload;
 }
