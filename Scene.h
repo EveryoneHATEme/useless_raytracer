@@ -1,24 +1,42 @@
 #pragma once
 
-#include <memory>
-#include <vector>
+#include <array>
 
-#include "raylib.h"
+#include <glm/glm.hpp>
 
-#include "RenderableObject.h"
-#include "Utils.h"
-#include "HitPayload.h"
+#include "Settings.h"
+
+
+struct MaterialPayload
+{
+    Material materials[MATERIALS_SIZE];
+    unsigned int materialsCount = 0;
+    float padding0;
+    float padding1;
+    float padding2;
+};
+
+struct SpherePayload
+{
+    Sphere spheres[SPHERES_SIZE];
+    unsigned int spheresCount = 0;
+    float padding0;
+    float padding1;
+    float padding2;
+};
 
 class Scene
 {
 private:
-	std::vector<std::shared_ptr<RenderableObject>> objects;
+    MaterialPayload materialPayload;
+    SpherePayload spherePayload;
 
 public:
-	Scene() = default;
-	Scene(const std::vector<std::shared_ptr<RenderableObject>>& objects);
+    Scene() {};
+    
+    void addMaterial(const Material& material);
+    void addSphere(const Sphere& sphere);
 
-	void AddObject(std::shared_ptr<RenderableObject> object);
-
-	const std::vector<std::shared_ptr<RenderableObject>>& GetObjects() const;
+    const MaterialPayload& getMaterialPayload() const;
+    const SpherePayload& getSpherePayload() const;
 };

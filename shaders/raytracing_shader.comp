@@ -1,0 +1,235 @@
+#version 430
+#define MAX_MATERIALS 8
+#define MAX_SPHERES 8
+#define MAX_DEPTH 8
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout (std430, binding = 0) buffer AccumBuffer {
+    vec4 accumData[];
+};
+
+layout (std140, binding = 0) uniform ScreenDimensions
+{
+    int width;
+    int height;
+};
+
+struct Material
+{
+    vec3 albedo;
+    float reflectanceRate;
+    vec3 emissionColor;
+    float emissionPower;
+};
+
+layout (std140, binding = 1) uniform MaterialBlock
+{
+    Material materials[MAX_MATERIALS];
+    uint materialsCount;
+};
+
+struct Sphere
+{
+    vec3 origin;
+    float radius;
+    uint materialIndex;
+    float padding0;
+    float padding1;
+    float padding2;
+};
+
+layout (std140, binding = 2) uniform SphereBlock
+{
+    Sphere spheres[MAX_SPHERES];
+    uint spheresCount;
+};
+
+uniform int frameCount;
+uniform int time;
+uniform mat4 inverseViewMatrix;
+uniform mat4 inverseProjectionMatrix;
+uniform vec3 cameraPosition;
+
+struct Ray
+{
+    vec3 origin;
+    vec3 direction;
+};
+
+struct HitPayload
+{
+    int sphereIndex;
+    float hitDistance;
+};
+
+struct RandomFloatPayload 
+{
+    float result;
+    uint seed;
+};
+
+struct RandomUnitVectorPayload
+{
+    vec3 result;
+    uint seed;
+};
+
+// random related
+float toNormalizedFloat(uint seed);
+uint pcgHash(uint seed);
+RandomFloatPayload randomFloat(uint seed);
+RandomUnitVectorPayload randomUnitVector(uint seed);
+
+// ray logic
+vec3 getSphereNormal(int sphereIndex, vec3 hitPosition);
+vec3 getRayDirection(uint x, uint y, uint seed);
+HitPayload traceRay(Ray ray);
+
+void main() 
+{
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+    
+    if (x >= uint(width) || y >= uint(height))
+        return;
+
+    uint seed = x + y * width * frameCount;
+
+    Ray currentRay = Ray(cameraPosition, getRayDirection(x, y, seed));
+
+    vec3 totalColor = vec3(0.0);
+    vec3 throughput = vec3(1.0);
+
+    for (uint depth = 0; depth < MAX_DEPTH; depth++) {
+        seed += depth;
+
+        HitPayload hitPayload = traceRay(currentRay);
+        if (hitPayload.sphereIndex == -1) {
+            //totalColor += vec3(1.0, 1.0, 1.0) * throughput;
+            break;
+        }
+        
+        vec3 hitPosition = currentRay.origin + currentRay.direction * hitPayload.hitDistance;
+        vec3 hitNormal = getSphereNormal(hitPayload.sphereIndex, hitPosition);
+        Material hitMaterial = materials[spheres[hitPayload.sphereIndex].materialIndex];
+
+        totalColor += hitMaterial.emissionColor * hitMaterial.emissionPower * throughput;
+        throughput *= hitMaterial.albedo;
+
+        RandomFloatPayload reflectionChancePayload = randomFloat(seed);
+        seed = reflectionChancePayload.seed;
+        float reflectionChance = (reflectionChancePayload.result + 1) * 0.5;
+
+        vec3 newDirection;
+
+        if (reflectionChance < hitMaterial.reflectanceRate) {
+            throughput *= hitMaterial.reflectanceRate;
+            newDirection = reflect(currentRay.direction, hitNormal);
+        } else {
+            RandomUnitVectorPayload bounceDirectionPayload = randomUnitVector(seed);
+            seed = bounceDirectionPayload.seed;
+
+            newDirection = normalize(hitNormal + bounceDirectionPayload.result);
+        }
+
+        currentRay = Ray(hitPosition + hitNormal * 0.0001, newDirection);
+    }
+
+    vec4 newColor = vec4(totalColor, 1.0);
+    uint index = y * uint(width) + x;
+
+    vec4 oldColor = accumData[index];
+    vec4 averaged = (oldColor * float(frameCount - 1) + newColor) / float(frameCount);
+    accumData[index] = averaged;
+}
+
+
+float toNormalizedFloat(uint seed)
+{
+    const uint ieeeMantissa = 0x007FFFFFu;      // binary32 mantissa bitmask
+    const uint ieeeOne = 0x3F800000u;           // 1.0 in IEEE binary32
+
+    seed &= ieeeMantissa;                       // Keep only mantissa bits (fractional part)
+    seed |= ieeeOne;                            // Add fractional part to 1.0
+
+    float result = uintBitsToFloat(seed);       // Range [1:2]
+    return (result - 1.0) * 2.0 - 1.0;          // Range [-1:1]
+}
+
+uint pcgHash(uint seed) 
+{
+    uint state = seed * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+RandomFloatPayload randomFloat(uint seed) 
+{
+    seed = pcgHash(pcgHash(seed));
+
+    RandomFloatPayload result = RandomFloatPayload(
+        toNormalizedFloat(seed),
+        seed
+    );
+    return result;
+}
+
+RandomUnitVectorPayload randomUnitVector(uint seed) 
+{
+    RandomFloatPayload firstPayload = randomFloat(seed);
+    RandomFloatPayload secondPayload = randomFloat(firstPayload.seed);
+    RandomFloatPayload thirdPayload = randomFloat(secondPayload.seed);
+
+    RandomUnitVectorPayload result = RandomUnitVectorPayload(
+        normalize(vec3(firstPayload.result, secondPayload.result, thirdPayload.result)),
+        thirdPayload.seed
+    );
+    return result;
+}
+
+vec3 getSphereNormal(int sphereIndex, vec3 hitPosition) 
+{
+    return normalize(hitPosition - spheres[sphereIndex].origin);
+}
+
+vec3 getRayDirection(uint x, uint y, uint seed)
+{
+    RandomFloatPayload offsetPayload = randomFloat(seed);
+    float offsetX = offsetPayload.result;
+    offsetPayload = randomFloat(offsetPayload.seed);
+    float offsetY = offsetPayload.result;
+
+    vec2 coordinate = vec2((float(x) + offsetX) / width, (float(y) + offsetY) / height);
+    coordinate *= 2.0;
+    coordinate -= 1.0;
+    vec4 target = inverseProjectionMatrix * vec4(coordinate, 1.0, 1.0);
+
+    return vec3(inverseViewMatrix * vec4(normalize(vec3(target) / target.w), 0.0));
+}
+
+HitPayload traceRay(Ray ray) 
+{
+    HitPayload closestHit;
+    closestHit.sphereIndex = -1;
+    closestHit.hitDistance = 1e20;
+    
+    for (int i = 0; i < spheresCount; i++) {
+        vec3 oc = spheres[i].origin - ray.origin;
+        float a = dot(ray.direction, ray.direction);
+        float b = -2.0 * dot(ray.direction, oc);
+        float c = dot(oc, oc) - spheres[i].radius * spheres[i].radius;
+
+        float discriminant = b * b - 4 * a * c;
+        if (discriminant < 0)
+            continue;
+        
+        float currentDistance = (-b - sqrt(discriminant)) / (2.0 * a);
+        if (currentDistance > 0.0 && currentDistance < closestHit.hitDistance) {
+            closestHit.sphereIndex = i;
+            closestHit.hitDistance = currentDistance;
+        }
+    }
+
+    return closestHit;
+}

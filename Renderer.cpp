@@ -1,104 +1,78 @@
 #include "Renderer.h"
 
-#include <iostream>
-
-glm::vec3 Renderer::RenderPixel(unsigned int x, unsigned int y)
+Renderer::Renderer(Camera& camera, Scene& scene)
+	:camera(camera), scene(scene)
 {
-	RayClass currentRay = RayClass(camera.GetPosition(), rayDirectionsCache[x + y * camera.getViewportWidth()]);
+    this->screenStorageBuffer = std::make_unique<ShaderStorageBuffer>(this->camera.getViewportWidth() * this->camera.getViewportHeight() * sizeof(float) * 4);
+    this->screenStorageBuffer->setBindingPoint(0);
 
-	glm::vec3 color(0.f);
-	glm::vec3 throughput(1.f);
+    this->displayTexture = std::make_unique<Texture>(this->camera.getViewportWidth(), this->camera.getViewportHeight());
 
-	for (unsigned int depth = 0u; depth < maxDepth; ++depth) {
-		HitPayload hitPayload = TraceRay(currentRay);
+    float quadVertices[8] = {
+        -1.f, -1.f,
+        1.f, -1.f,
+        -1.f, 1.f,
+        1.f, 1.f
+    };
+    this->vertexBuffer = std::make_unique<VertexBuffer>(sizeof(quadVertices), quadVertices);
 
-		if (hitPayload.distance < 0.f) {
-			//color += throughput * glm::vec3(0.01f, 0.01f, 0.015f);
-			break;
-		}
+    VertexBufferLayout vertexBufferLayout;
+    vertexBufferLayout.push<float>(2);
 
-		MaterialStruct hitMaterial = hitPayload.object.get()->GetMaterial();
+    this->vertexArray = std::make_unique<VertexArray>();
+    this->vertexArray->addBuffer(*this->vertexBuffer.get(), vertexBufferLayout);
 
-		throughput *= hitMaterial.albedo;
-		color += hitMaterial.emissionColor * hitMaterial.emissionPower * throughput;
+    this->displayShader = std::make_unique<Shader>("vertex_shader.vert", "fragment_shader.frag", nullptr);
+    this->copyShader = std::make_unique<Shader>(nullptr, nullptr, "copy_shader.comp");
+    this->raytracingShader = std::make_unique<Shader>(nullptr, nullptr, "raytracing_shader.comp");
 
-		float r = Utils::RandomFloat();
-		glm::vec3 newDirection;
+    int dimensions[2]{ (int)this->camera.getViewportWidth(), (int)this->camera.getViewportHeight() };
 
-		if (r < hitMaterial.reflectanceRate) {
-			throughput *= hitMaterial.reflectanceRate;
-			newDirection = glm::reflect(currentRay.GetDirection(), hitPayload.normal);
-		}
-		else {
-			newDirection = glm::normalize(hitPayload.normal + Utils::RandomOnUnitSphere());
-		}
+    this->dimensionsBuffer = std::make_unique<UniformBuffer>(dimensions, 2 * sizeof(int), 0);
+    this->materialsBuffer = std::make_unique<UniformBuffer>(&this->scene.getMaterialPayload(), sizeof(MaterialPayload), 1);
+    this->spheresBuffer = std::make_unique<UniformBuffer>(&this->scene.getSpherePayload(), sizeof(SpherePayload), 2);
 
-		currentRay = RayClass(hitPayload.position + hitPayload.normal * 0.0001f, newDirection);
-	}
+    this->dimensionsBuffer->setShaderBinding(this->raytracingShader->getID(), "ScreenDimensions");
+    this->dimensionsBuffer->setShaderBinding(this->copyShader->getID(), "ScreenDimensions");
+    
+    this->materialsBuffer->setShaderBinding(this->raytracingShader->getID(), "MaterialBlock");
 
-	return color;
+    this->spheresBuffer->setShaderBinding(this->raytracingShader->getID(), "SphereBlock");
 }
 
-HitPayload Renderer::TraceRay(const RayClass& ray) const
+Renderer::~Renderer()
 {
-	float minHitDistance = std::numeric_limits<float>::infinity();
-	std::shared_ptr<RenderableObject> closestObject = nullptr;
-	float currentHitDistance = -1.f;
-	
-	for (const std::shared_ptr<RenderableObject>& object : scene.GetObjects()) {
-		if (!object.get()->FindClosestIntersection(ray, currentHitDistance))
-			continue;
-
-		if (currentHitDistance > 0.f && currentHitDistance < minHitDistance) {
-			minHitDistance = currentHitDistance;
-			closestObject = object;
-		}
-	}
-
-	if (closestObject == nullptr)
-		return GetMissPayload(ray);
-
-	return GetClosestHitPayload(ray, minHitDistance, closestObject);
 }
 
-HitPayload Renderer::GetClosestHitPayload(const RayClass& ray, float hitDistance, std::shared_ptr<RenderableObject> hitObject) const
+
+void Renderer::draw(GLFWwindow* window)
 {
-	glm::vec3 hitPosition = ray.at(hitDistance);
-	glm::vec3 hitNormal = glm::normalize(hitPosition - hitObject.get()->GetPosition());
+    if (camera.isMoved())
+        this->frameIndex = 1u;
+    else
+        this->frameIndex++;
 
-	return { hitDistance, hitPosition, hitNormal, hitObject };
-}
+    this->raytracingShader->use();
+    this->raytracingShader->setInt("frameCount", this->frameIndex);
+    this->raytracingShader->setMat4("inverseViewMatrix", this->camera.getInverseViewMatrix());
+    this->raytracingShader->setMat4("inverseProjectionMatrix", this->camera.getInverseProjectionMatrix());
+    this->raytracingShader->setVec3("cameraPosition", this->camera.getPosition());
 
-HitPayload Renderer::GetMissPayload(const RayClass& ray) const
-{
-	return { -1.f, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, nullptr };
-}
+    glDispatchCompute((this->camera.getViewportWidth() + 15) / 16, (this->camera.getViewportHeight() + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-Renderer::Renderer(const Scene& scene, CameraClass& camera, unsigned int maxDepth)
-	:scene(scene), camera(camera), maxDepth(maxDepth)
-{
-	this->rayDirectionsCache.resize(camera.getViewportWidth() * camera.getViewportHeight());
-	this->imageCache = new glm::vec3[camera.getViewportWidth() * camera.getViewportHeight()];
-}
+    this->copyShader->use();
 
-void Renderer::RenderScene(Image& buffer)
-{
-	if (this->camera.IsMoved()) {
-		memset(this->imageCache, 0, this->camera.getViewportWidth() * this->camera.getViewportHeight() * sizeof(glm::vec3));
-		this->frameIndex = 1u;
-	}
+    glBindImageTexture(1, this->displayTexture->getID(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glDispatchCompute((this->camera.getViewportWidth() + 15) / 16, (this->camera.getViewportHeight() + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-	for (unsigned int y = 0u; y < camera.getViewportHeight(); ++y) 
-		for (unsigned int x = 0u; x < camera.getViewportWidth(); ++x) 
-			imageCache[x + y * camera.getViewportWidth()] += RenderPixel(x, y);
-
-	Utils::CopyArrayToImage(this->imageCache, buffer, (float)frameIndex);
-
-	++this->frameIndex;
-}
-
-void Renderer::Update()
-{
-	if (this->antialiasing || this->camera.IsMoved())
-		camera.GetRayDirections(rayDirectionsCache);
+    glClear(GL_COLOR_BUFFER_BIT);
+    this->displayShader->use();
+    this->displayTexture->bind(0);
+    this->displayShader->setInt("displayTex", 0);
+    this->vertexArray->bind();
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    this->vertexArray->unbind();
+    displayTexture->unbind();
 }

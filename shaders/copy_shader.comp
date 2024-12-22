@@ -1,0 +1,29 @@
+#version 430 core
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout (std430, binding = 0) buffer AccumBuffer {
+    vec4 accumData[];
+};
+
+layout (std140, binding = 0) uniform ScreenDimensions
+{
+    int width;
+    int height;
+};
+
+layout (rgba32f, binding = 1) uniform image2D displayImage;
+
+void main() 
+{
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    if (x >= uint(width) || y >= uint(height))
+        return;
+    
+    uint index = y * uint(width) + x;
+    vec4 color = accumData[index];
+
+    imageStore(displayImage, ivec2(x,y), color);
+}

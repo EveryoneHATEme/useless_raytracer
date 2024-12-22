@@ -1,75 +1,81 @@
 ﻿#pragma once
 
-#define GLM_FORCE_INLINE
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
 #include <memory>
 #include <vector>
 #include <iostream>
 
-#include "raylib.h"
-
-#include "Material.h"
 #include "Renderer.h"
-#include "Scene.h"
-#include "Sphere.h"
 #include "Camera.h"
+#include "Scene.h"
+
 
 int main()
 {
-    SetTraceLogLevel(LOG_ERROR);
+    unsigned int windowWidth = 1920;
+    unsigned int windowHeight = 1080;
 
-    unsigned int windowWidth = 1280;
-    unsigned int windowHeight = 720;
+    float lastFrameTime;
 
-    InitWindow(windowWidth, windowHeight, "window");
-
-    MaterialStruct groundMaterial = { glm::vec3(0.6f, 0.6f, 0.6f), 1.f, 0.2f};
-    MaterialStruct diffuseMaterial = { glm::vec3(1.f, 0.2f, 0.2f), 1.f };
-    MaterialStruct metalMaterial = { glm::vec3(0.4f, 0.4f, 0.4f), 0.5f, 0.9f };
-    MaterialStruct lightMaterial = { glm::vec3(1.f, 1.f, 1.f), 1.f, 0.f, glm::vec3(1.f, 1.f, 1.f), 5.f };
-    MaterialStruct YellowLightMaterial = { glm::vec3(1.f, 0.6f, 0.0f), 1.f, 0.f, glm::vec3(1.f, .6f, 0.0f), 5.f };
-
-    std::shared_ptr<Sphere> groundSphere = std::make_shared<Sphere>(100.f, glm::vec3(0.0f, 100.5f, 1.0f), groundMaterial);
-    std::shared_ptr<Sphere> diffuseSphere = std::make_shared<Sphere>(0.5f, glm::vec3(1.0f, 0.0f, 0.0f), diffuseMaterial);
-    std::shared_ptr<Sphere> metalSphere = std::make_shared<Sphere>(0.5f, glm::vec3(-1.0f, 0.0f, 0.0f), metalMaterial);
-    std::shared_ptr<Sphere> lightSphere = std::make_shared<Sphere>(0.5f, glm::vec3(0.f, 0.f, -3.f), YellowLightMaterial);
-    std::shared_ptr<Sphere> anotherLightSphere = std::make_shared<Sphere>(0.5f, glm::vec3(0.f, -2.f, 3.f), lightMaterial);
-
-    Scene scene;
-    scene.AddObject(groundSphere);
-    scene.AddObject(diffuseSphere);
-    scene.AddObject(metalSphere);
-    scene.AddObject(lightSphere);
-    scene.AddObject(anotherLightSphere);
-
-    CameraClass camera(windowWidth, windowHeight, glm::radians(45.f), 0.1f, 100.f);
-
-    Renderer renderer(scene, camera, 50);
-
-    Image currentImage = GenImageColor(windowWidth, windowHeight, WHITE);
-
-    while (!WindowShouldClose())
-    {
-        float frameTime = GetFrameTime();
-        renderer.Update();
-        camera.Update(frameTime);
-
-        renderer.RenderScene(currentImage);
-        Texture2D currentTexture = LoadTextureFromImage(currentImage);
-
-        BeginDrawing();
-
-            ClearBackground(WHITE);
-            DrawTexture(currentTexture, 0, 0, WHITE);
-            //DrawFPS(0, 0);
-
-        EndDrawing();
-
-        UnloadTexture(currentTexture);
-        std::cout << "Rendered frame in " << frameTime << "s\n";
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize glfw\n";
+        return -1;
     }
 
-    CloseWindow();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "window", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "Failed to create GLFW window\n";
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::cerr << "Failed to initialize glew\n";
+        return -1;
+    }
+
+    Scene scene;
+    scene.addMaterial({ glm::vec3(0.6f, 0.6f, 0.6f), 0.5f, glm::vec3(0.7f, 0.05f, 0.7f), 2.f }); // ground
+    scene.addMaterial({ glm::vec3(1.0f, 0.2f, 0.2f), 0.3f, glm::vec3(0.f), 0.f }); // diffuse 
+    scene.addMaterial({ glm::vec3(0.2f, 0.2f, 1.0f), 1.0f, glm::vec3(0.f), 0.f }); // metal 
+    scene.addMaterial({ glm::vec3(1.f, 1.f, 1.f), 0.f, glm::vec3(0.1f, 0.1f, 1.f), 5.f }); // white light
+    scene.addMaterial({ glm::vec3(1.f, 0.6f, 0.f), 0.f, glm::vec3(1.f, 0.6f, 0.01f), 10.f }); // yellow light
+
+    scene.addSphere({ glm::vec3(0.0f, 100.5f, 1.0f), 100.f, 0, 0.0, 0.0, 0.0 }); // ground
+    scene.addSphere({ glm::vec3(2.0f, 0.0f, 0.0f), 0.5f, 1, 0.0, 0.0, 0.0 }); // diffuse
+    scene.addSphere({ glm::vec3(-2.0f, 0.0f, 0.0f), 0.5f, 2, 0.0, 0.0, 0.0 }); // metal
+    scene.addSphere({ glm::vec3(0.0f, -2.0f, 3.0f), 0.5f, 3, 0.0, 0.0, 0.0 }); // white light
+    scene.addSphere({ glm::vec3(0.0f, 0.0f, -3.0f), 0.5f, 4, 0.0, 0.0, 0.0 }); // yellow light
+
+    Camera camera(windowWidth, windowHeight, glm::vec3(0.0f, 0.0f, -2.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(45.f), 0.1f, 100.f);
+
+    Renderer renderer(camera, scene);
+
+    lastFrameTime = (float)glfwGetTime();
+
+    while (!glfwWindowShouldClose(window))
+    {
+        float currentFrameTime = (float)glfwGetTime();
+        float deltaTime = currentFrameTime - lastFrameTime;
+        lastFrameTime = currentFrameTime;
+
+        camera.update(window, deltaTime);
+        renderer.draw(window);
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
 
     return 0;
 }
