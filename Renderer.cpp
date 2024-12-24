@@ -44,7 +44,6 @@ Renderer::~Renderer()
 {
 }
 
-
 void Renderer::draw(GLFWwindow* window)
 {
     if (camera.isMoved())

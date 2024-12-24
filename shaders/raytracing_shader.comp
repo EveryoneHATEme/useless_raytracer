@@ -46,7 +46,6 @@ layout (std140, binding = 2) uniform SphereBlock
 };
 
 uniform int frameCount;
-uniform int time;
 uniform mat4 inverseViewMatrix;
 uniform mat4 inverseProjectionMatrix;
 uniform vec3 cameraPosition;
@@ -63,27 +62,15 @@ struct HitPayload
     float hitDistance;
 };
 
-struct RandomFloatPayload 
-{
-    float result;
-    uint seed;
-};
-
-struct RandomUnitVectorPayload
-{
-    vec3 result;
-    uint seed;
-};
-
 // random related
 float toNormalizedFloat(uint seed);
 uint pcgHash(uint seed);
-RandomFloatPayload randomFloat(uint seed);
-RandomUnitVectorPayload randomUnitVector(uint seed);
+float randomFloat(inout uint seed);
+vec3 randomUnitVector(inout uint seed);
 
 // ray logic
 vec3 getSphereNormal(int sphereIndex, vec3 hitPosition);
-vec3 getRayDirection(uint x, uint y, uint seed);
+vec3 getRayDirection(uint x, uint y, inout uint seed);
 HitPayload traceRay(Ray ray);
 
 void main() 
@@ -117,9 +104,7 @@ void main()
         totalColor += hitMaterial.emissionColor * hitMaterial.emissionPower * throughput;
         throughput *= hitMaterial.albedo;
 
-        RandomFloatPayload reflectionChancePayload = randomFloat(seed);
-        seed = reflectionChancePayload.seed;
-        float reflectionChance = (reflectionChancePayload.result + 1) * 0.5;
+        float reflectionChance = (randomFloat(seed) + 1) * 0.5;
 
         vec3 newDirection;
 
@@ -127,10 +112,7 @@ void main()
             throughput *= hitMaterial.reflectanceRate;
             newDirection = reflect(currentRay.direction, hitNormal);
         } else {
-            RandomUnitVectorPayload bounceDirectionPayload = randomUnitVector(seed);
-            seed = bounceDirectionPayload.seed;
-
-            newDirection = normalize(hitNormal + bounceDirectionPayload.result);
+            newDirection = normalize(hitNormal + randomUnitVector(seed));
         }
 
         currentRay = Ray(hitPosition + hitNormal * 0.0001, newDirection);
@@ -164,28 +146,15 @@ uint pcgHash(uint seed)
     return (word >> 22u) ^ word;
 }
 
-RandomFloatPayload randomFloat(uint seed) 
+float randomFloat(inout uint seed) 
 {
-    seed = pcgHash(pcgHash(seed));
-
-    RandomFloatPayload result = RandomFloatPayload(
-        toNormalizedFloat(seed),
-        seed
-    );
-    return result;
+    seed = pcgHash(seed);
+    return toNormalizedFloat(seed);
 }
 
-RandomUnitVectorPayload randomUnitVector(uint seed) 
+vec3 randomUnitVector(inout uint seed) 
 {
-    RandomFloatPayload firstPayload = randomFloat(seed);
-    RandomFloatPayload secondPayload = randomFloat(firstPayload.seed);
-    RandomFloatPayload thirdPayload = randomFloat(secondPayload.seed);
-
-    RandomUnitVectorPayload result = RandomUnitVectorPayload(
-        normalize(vec3(firstPayload.result, secondPayload.result, thirdPayload.result)),
-        thirdPayload.seed
-    );
-    return result;
+    return normalize(vec3(randomFloat(seed), randomFloat(seed), randomFloat(seed)));
 }
 
 vec3 getSphereNormal(int sphereIndex, vec3 hitPosition) 
@@ -193,12 +162,10 @@ vec3 getSphereNormal(int sphereIndex, vec3 hitPosition)
     return normalize(hitPosition - spheres[sphereIndex].origin);
 }
 
-vec3 getRayDirection(uint x, uint y, uint seed)
+vec3 getRayDirection(uint x, uint y, inout uint seed)
 {
-    RandomFloatPayload offsetPayload = randomFloat(seed);
-    float offsetX = offsetPayload.result;
-    offsetPayload = randomFloat(offsetPayload.seed);
-    float offsetY = offsetPayload.result;
+    float offsetX = randomFloat(seed);
+    float offsetY = randomFloat(seed);
 
     vec2 coordinate = vec2((float(x) + offsetX) / width, (float(y) + offsetY) / height);
     coordinate *= 2.0;
